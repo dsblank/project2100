@@ -203,7 +203,7 @@ def combine_counts(counts):
     depths = sorted(counts.keys())
     sets = [[depths[0]]]
     for d in range(len(depths) - 1):
-        if abs(depths[d] - depths[d+1]) <= 2:
+        if abs(int(depths[d]) - int(depths[d+1])) <= 2:
             sets[-1].append(depths[d+1])
         else:
             sets.append([depths[d+1]])
@@ -254,6 +254,9 @@ instr2.connect()
 percussion = chuck.Shakers()
 percussion.connect()
 
+crash = SnareChili()
+crash.connect()
+
 HIGHEST_DEVIATION = 4.87
 
 def key_to_freq(n):
@@ -292,7 +295,7 @@ def play_note(instrument, percussion, frequency, volume, quarter_note,
     instrument.setGain(volume)
     #for synth, use noteOn; for mandolin, use pluck
     #instrument.noteOn(1.0)
-    instrument.pluck(0.3)
+    instrument.pluck(0.2)
     time.sleep(seconds1)
     # present!
     if percussion: # 2050
@@ -348,7 +351,7 @@ def play_measure(instrument, percussion, year, angle, tempo):
     # year 1900 to 2100
     # angle 0 to 1
     # temp 0 to 1
-    note_percent = 0.75 # percent of beat that note plays
+    note_percent = 1.00 # percent of beat that note plays
 
     tdata1 = get_or_make_estimate(year - 2, angle)
     tdata2 = get_or_make_estimate(year - 1, angle)
@@ -361,17 +364,20 @@ def play_measure(instrument, percussion, year, angle, tempo):
     quarter_note = 1.0 - tempo/1.0 
     eighth_note = quarter_note/2.0
 
-    #if False and year > 2016: # present!
-    #    instr2.setFrequency(tfreq3)
-    #    instr2.pluck(0.7)
+    instr1.noteOff(0.7)
 
-    play_note(instrument, None, tfreq3, 1.0, 
+    play_note(instrument, percussion, tfreq3, 1.0, 
               quarter_note, note_percent, 1, year)
+
+    if year >= 2000: # present!
+        instr1.setGain(0.5)
+        instr1.setFrequency(tfreq3)
+        instr1.noteOn(0.7)
 
     #play_note(instrument, percussion, tfreq2, 0.7, 
     #          quarter_note, note_percent, 2, year)
 
-    #play_note(instrument, percussion, tfreq2, 0.6, 
+    #play_note(instrument, percussion, tfreq1, 0.6, 
     #          quarter_note, note_percent, 3, year)
 
 
@@ -453,44 +459,78 @@ def main():
             # counts = {32: [c, c, c, c], 67: [c, c, c]}
             if counts == {}:
                 print("No one seen")
-                continue
-            counts = combine_counts(counts)
-            depths = sorted([(len(cnt), depth) for (depth, cnt) in 
-                             counts.items()], reverse=True)
-            minimum_count_depth = depths[0] # (len of count, depth)
-            minimum = minimum_count_depth[1]
-            print("matched pixels:", minimum_count_depth[0])
-            if minimum < 10:
-                print("too close")
-                continue
-            if minimum_count_depth[0] < 10:
-                print("Not big enough to count as being a person")
-                if started and fail_count < 7:
+                if started and fail_count < 4:
                     year = last_year
                     fail_count += 1
                 else:
+                    instr1.noteOff(0.7)
+                    started = False
                     continue
-            column = sum(counts[minimum_count_depth[1]])/float(minimum_count_depth[0])
-            angle = column/float(width)
-            print("min angle:", angle, "distance:", minimum)
+            if counts != {}:
+                counts = combine_counts(counts)
+                depths = sorted([(len(cnt), depth) for (depth, cnt) in 
+                                 counts.items()], reverse=True)
+                minimum_count_depth = depths[0] # (len of count, depth)
+                minimum = minimum_count_depth[1]
+                print("matched pixels:", minimum_count_depth[0])
+                if minimum < 10:
+                    print("too close")
+                    if started and fail_count < 4:
+                        year = last_year
+                        fail_count += 1
+                    else:
+                        instr1.noteOff(0.7)
+                        started = False
+                        continue
+                if minimum_count_depth[0] < 10 and minimum_count_depth[1] < 50:
+                    print("Not big enough to count as being a person")
+                    if started and fail_count < 4:
+                        year = last_year
+                        fail_count += 1
+                    else:
+                        instr1.noteOff(0.7)
+                        started = False
+                        continue
+                column = sum(counts[minimum_count_depth[1]])/float(minimum_count_depth[0])
+                angle = column/float(width)
+                print("min angle:", angle, "distance:", minimum)
+            else: # no counts, but forced play
+                # FIXME:
+                minimum = 100
+                angle =  0.5
         else:
-            continue # no scan
-        year = min(max(int((minimum - 30)/100.0 * 200.0 + 1900), 1900), 2100)
+            if started and fail_count < 4:
+                year = last_year
+                fail_count += 1
+                # FIXME:
+                minimum = 100
+                angle = 0.5
+            else:
+                instr1.noteOff(0.7)
+                started = False
+                continue # no scan
+        year = min(max(int((minimum - 30)/105.0 * 200.0 + 1900), 1900), 2100)
         tempo = (year - 1900)/220.0
         if started:
             #if abs(last_year - year) > 20:
             #    print("Nope! year is too different", year, last_year)
             #    continue
-            if year >= 2100:
+            if year >= 2100 and last_year > 2080:
                 ## FIXME: stay at end
                 ## sound to signal end
                 started = False
+                for i in range(6):
+                    play_measure(instr2, percussion, 2100, angle, 0.66)
+                instr1.noteOff(0.7)
+                crash.noteOn()
                 continue
         else:
             if year <= 1930:
                 started = True
             else:
                 print("Not yet! go to start!")
+                started = False
+                instr1.noteOff(0.7)
                 continue
         fail_count = 0
         print("year:", year, "tempo:", tempo)

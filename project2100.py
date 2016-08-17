@@ -15,10 +15,6 @@ from PIL import Image
 import time
 import sys
 
-ctx = freenect.init()
-dev = freenect.open_device(ctx, freenect.num_devices(ctx) - 1)
-freenect.set_depth_format(dev, 
-
 average = 14.0 # add to each, in celsius; not needed
 
 def initialize_data():
@@ -405,33 +401,53 @@ def main():
         # get scan:
         print("scan!")
         scan = get_scan()
-        if not scan:
-            continue
-        else:
+        if scan is not None:
             data = get_depth(scan) # 0 is close, 255 is nothing
             rows, cols = data.shape
-            minimum = 255
-            minimum_col = 0
-            pic = np.zeros(shape=(5, cols), dtype="uint8")
+            start_row = 200
+            stop_row = 300 # 480 - edge
+            start_col = 150
+            stop_col = 490 # 640
+            height, width = (stop_row - start_row), (stop_col - start_col)
+            pic = np.zeros(shape=(height, width), dtype="uint8")
             r = 0
-            for row in range(240, 240 + 5): # middle 10
+            # leave off 100 pixels from bottom
+            for row in range(start_row, stop_row): # middle 
                 c = 0
-                for col in range(100, cols - 200, 1): # 640
-                    if data[row][col] < minimum:
-                        minimum = data[row][col]
-                        minimum_col = c
-                    pic[r][col] = data[row][col]
+                counts = {}
+                for col in range(start_col, stop_col): # middle
+                    # FIXME: don't look at distances too far
+                    if 0 < data[row][col] < 145:
+                        list = counts.get(data[row][col], [])
+                        list.append(c)
+                        counts[data[row][col]] = list
+                        pic[r][c] = data[row][col]
                     c += 1
                 r += 1
-            angle = minimum_col/c
+            # Debug: ########################
+            image = Image.fromarray(pic, mode="L")
+            image.save("test1.jpg")
+            #################################
+            # counts = {32: [c, c, c, c], 67: [c, c, c]}
+            if counts == {}:
+                print("No one seen")
+                continue
+            depths = sorted([(len(cnt), depth) for (depth, cnt) in 
+                             counts.items()], reverse=True)
+            minimum_count_depth = depths[0] # (len of count, depth)
+            minimum = minimum_count_depth[1]
+            if minimum_count_depth[0] < 15:
+                print("Not big enough to count as being a person")
+                continue
+            angle = sum(counts[minimum_count_depth[1]])/float(minimum_count_depth[0])
             print("min angle:", angle, "distance:", minimum)
-        year = int(minimum/255.0 * 200.0 + 1900)
+        else:
+            continue # no scan
+        year = int((minimum - 30)/115.0 * 200.0 + 1900)
         tempo = (year - 1900)/220.0
         print("year:", year, "tempo:", tempo)
         play_measure(instr2, percussion, year, angle, tempo)
         print("temp:", tdata.get(year, None))
-        #image = Image.fromarray(data, mode="L")
-        #image.save("test1.png")
         #print(image)
         #time.sleep(5)
         #if year >= 2100:

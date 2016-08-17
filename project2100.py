@@ -199,6 +199,22 @@ class Snare(chuck.FileRead):
         time.sleep(.1)
         self.setLooping(0)
 
+def combine_counts(counts):
+    depths = sorted(counts.keys())
+    sets = [[depths[0]]]
+    for d in range(len(depths) - 1):
+        if abs(depths[d] - depths[d+1]) <= 2:
+            sets[-1].append(depths[d+1])
+        else:
+            sets.append([depths[d+1]])
+    retval = {}
+    for set in sets:
+        columns = []
+        for depth in set:
+            columns.extend(counts[depth])
+        retval[set[0]] = columns
+    return retval
+
 def get_scan():
      try:
         scan = freenect.sync_get_depth(format=freenect.DEPTH_MM)[0]
@@ -257,6 +273,7 @@ def tdata_to_freq(celsius):
     return freq
 
 def play_percussion(instrument, volume):
+    #print("play_percussion:", volume)
     instrument.noteOn(volume)
 
 def play_note(instrument, percussion, frequency, volume, quarter_note, 
@@ -287,8 +304,8 @@ def play_note(instrument, percussion, frequency, volume, quarter_note,
 
 def play_note2(instrument, percussion, frequency, volume, quarter_note, 
               note_percent, count, year):
-    seconds1 = quarter_note / 2.0
-    seconds2 = max((quarter_note * note_percent) - seconds1, 0)
+    seconds1 = quarter_note / 3.0
+    #seconds2 = max((quarter_note * note_percent) - seconds1, 0)
     instrument.setFrequency(frequency)
     if count == 1:
         v1 = 1.0
@@ -298,10 +315,10 @@ def play_note2(instrument, percussion, frequency, volume, quarter_note,
         v2 = 0.7
     if percussion:
         play_percussion(percussion, v1)
-    instrument.setGain(volume)
+    #instrument.setGain(volume)
     #for synth, use noteOn; for mandolin, use pluck
     #instrument.noteOn(1.0)
-    instrument.pluck(0.3)
+    #instrument.pluck(0.1)
     time.sleep(seconds1)
     # present!
     #if percussion: # 2050
@@ -316,6 +333,9 @@ def get_or_make_estimate(year, angle):
     global tdata
     tdata1 = tdata.get(year, None)
     if tdata1:
+        for i in range(max(year + 1, 2016), 2100):
+            if i in tdata:
+                del tdata[i]
         return tdata1
     ## estimate it based on past years:
     previous_year = get_or_make_estimate(year - 1, angle)
@@ -341,18 +361,18 @@ def play_measure(instrument, percussion, year, angle, tempo):
     quarter_note = 1.0 - tempo/1.0 
     eighth_note = quarter_note/2.0
 
-    if False and year > 2016: # present!
-        instr2.setFrequency(tfreq3)
-        instr2.pluck(0.7)
+    #if False and year > 2016: # present!
+    #    instr2.setFrequency(tfreq3)
+    #    instr2.pluck(0.7)
 
-    play_note(instrument, percussion, tfreq3, 1.0, 
+    play_note(instrument, None, tfreq3, 1.0, 
               quarter_note, note_percent, 1, year)
 
-    play_note(instrument, percussion, tfreq2, 0.7, 
-              quarter_note, note_percent, 2, year)
+    #play_note(instrument, percussion, tfreq2, 0.7, 
+    #          quarter_note, note_percent, 2, year)
 
-    play_note(instrument, percussion, tfreq2, 0.6, 
-              quarter_note, note_percent, 3, year)
+    #play_note(instrument, percussion, tfreq2, 0.6, 
+    #          quarter_note, note_percent, 3, year)
 
 
 def play_measure2(instrument, percussion, year, angle, tempo):
@@ -360,7 +380,7 @@ def play_measure2(instrument, percussion, year, angle, tempo):
     # year 1900 to 2100
     # angle 0 to 1
     # temp 0 to 1
-    note_percent = 0.75 # percent of beat that note plays
+    #note_percent = .75 # percent of beat that note plays
 
     #tdata1 = get_or_make_estimate(year - 2, angle)
     #tdata2 = get_or_make_estimate(year - 1, angle)
@@ -370,22 +390,22 @@ def play_measure2(instrument, percussion, year, angle, tempo):
     #tfreq2 = tdata_to_freq(tdata2)
     tfreq3 = tdata_to_freq(tdata3)
 
-    quarter_note = 1.0 - tempo/1.0 
+    #quarter_note = 1.0 - tempo/1.0 
     #triplet = quarter_note * 1.333333
-    whole_note = quarter_note * 3
+    #whole_note = quarter_note * 3
 
     if False and year > 2016: # present!
         instr2.setFrequency(tfreq3)
-        instr2.pluck(0.7)
+        #instr2.pluck(0.7)
 
-    play_note2(instrument, percussion, tfreq3, 1.0, whole_note,
+    play_note2(instrument, percussion, tfreq3, 1.0, quarter_note,
               note_percent, 1, year)
 
-    play_note2(instrument, percussion, tfreq3, 0, quarter_note,
-              note_percent, 2, year)
+    #play_note2(instrument, percussion, tfreq3, 0, quarter_note,
+              #note_percent, 2, year)
 
-    play_note2(instrument, percussion, tfreq3, 0, quarter_note,
-              note_percent, 3, year)
+    #play_note2(instrument, percussion, tfreq3, 0, quarter_note,
+              #note_percent, 3, year)
 
 
 def main():
@@ -397,6 +417,9 @@ def main():
     # Start infinite loop:
     #year = int(sys.argv[1])
     #angle = float(sys.argv[2])
+    last_year = 0
+    started = False
+    fail_count = 0
     while True:
         # get scan:
         print("scan!")
@@ -404,7 +427,7 @@ def main():
         if scan is not None:
             data = get_depth(scan) # 0 is close, 255 is nothing
             rows, cols = data.shape
-            start_row = 200
+            start_row = 250
             stop_row = 300 # 480 - edge
             start_col = 150
             stop_col = 490 # 640
@@ -416,7 +439,6 @@ def main():
                 c = 0
                 counts = {}
                 for col in range(start_col, stop_col): # middle
-                    # FIXME: don't look at distances too far
                     if 0 < data[row][col] < 145:
                         list = counts.get(data[row][col], [])
                         list.append(c)
@@ -425,34 +447,56 @@ def main():
                     c += 1
                 r += 1
             # Debug: ########################
-            image = Image.fromarray(pic, mode="L")
-            image.save("test1.jpg")
+            #image = Image.fromarray(pic, mode="L")
+            #image.save("test1.jpg")
             #################################
             # counts = {32: [c, c, c, c], 67: [c, c, c]}
             if counts == {}:
                 print("No one seen")
                 continue
+            counts = combine_counts(counts)
             depths = sorted([(len(cnt), depth) for (depth, cnt) in 
                              counts.items()], reverse=True)
             minimum_count_depth = depths[0] # (len of count, depth)
             minimum = minimum_count_depth[1]
-            if minimum_count_depth[0] < 15:
-                print("Not big enough to count as being a person")
+            print("matched pixels:", minimum_count_depth[0])
+            if minimum < 10:
+                print("too close")
                 continue
-            angle = sum(counts[minimum_count_depth[1]])/float(minimum_count_depth[0])
+            if minimum_count_depth[0] < 10:
+                print("Not big enough to count as being a person")
+                if started and fail_count < 7:
+                    year = last_year
+                    fail_count += 1
+                else:
+                    continue
+            column = sum(counts[minimum_count_depth[1]])/float(minimum_count_depth[0])
+            angle = column/float(width)
             print("min angle:", angle, "distance:", minimum)
         else:
             continue # no scan
-        year = int((minimum - 30)/115.0 * 200.0 + 1900)
+        year = min(max(int((minimum - 30)/100.0 * 200.0 + 1900), 1900), 2100)
         tempo = (year - 1900)/220.0
+        if started:
+            #if abs(last_year - year) > 20:
+            #    print("Nope! year is too different", year, last_year)
+            #    continue
+            if year >= 2100:
+                ## FIXME: stay at end
+                ## sound to signal end
+                started = False
+                continue
+        else:
+            if year <= 1930:
+                started = True
+            else:
+                print("Not yet! go to start!")
+                continue
+        fail_count = 0
         print("year:", year, "tempo:", tempo)
         play_measure(instr2, percussion, year, angle, tempo)
         print("temp:", tdata.get(year, None))
-        #print(image)
-        #time.sleep(5)
-        #if year >= 2100:
-        #    initialize_data()
-        #year += 1
+        last_year = year
 
 if __name__ == "__main__":
     main()

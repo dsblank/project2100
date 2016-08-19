@@ -1,0 +1,1 @@
+chuck --verbose:9 --port:9000 ~/project2100/chuck-scripts/oscrecv.ck

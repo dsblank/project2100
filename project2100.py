@@ -317,7 +317,16 @@ def play_ending(year, angle):
     for i in range(10):
         tempo_end = 0.7 + (0.03 * i)
         play_measure(instr2, percussion, 2100, angle, tempo_end)
-    crash.noteOn(volume=0.6, wait=4.0)
+    instr1.noteOff(0.7)
+    # time.sleep(1)
+    # for now, trying a percussion sound end
+    percussion.noteOn(1)
+    time.sleep(6)
+    percussion.noteOff(1)
+    # can't get the crash or any wav to work
+    # crash.noteOn(volume=0.6, wait=4.0)
+    # this next line prevents ending from playing 2100 end notes stored from previous iterations
+    initialize_data()
 
 def main():
     #window = gtk.Window()
@@ -326,10 +335,16 @@ def main():
     chuck.init()
     last_year = 0
     started = False
-    fail_count = 0
+    # fail_count = 0
     while True:
+        # empty print lines to make it easier to parse repetitive output
+        print("")
+        print("")
+        # print("where that snare at!")
+        # snare.noteOn(volume=0.6, wait=4.0)
+        # wait=4
+        print("scan!", started) # shows start status
         # get scan:
-        print("scan!")
         scan = get_scan()
         if scan is not None:
             data = get_depth(scan) # 0 is close, 255 is nothing
@@ -354,21 +369,23 @@ def main():
                     c += 1
                 r += 1
             # Debug: ########################
-            #image = Image.fromarray(pic, mode="L")
-            #image.save("test1.jpg")
+            # image = Image.fromarray(pic, mode="L")
+            # image.save("test1.jpg")
             #################################
             # counts = {32: [c, c, c, c], 67: [c, c, c]}
             if counts == {}:
+                # this is if no pixels get detected, at least I think, - RS
                 print("No one seen")
-                if started and fail_count < 4:
-                    year = last_year
-                    fail_count += 1
-		    #attempt to get rid of high notes when out of bounds
-		    #instr2.noteOff(0.1)
-                else:
-                    instr1.noteOff(0.7)
-                    started = False
-                    continue
+                continue
+      #           if started and fail_count < 4:
+      #               year = last_year
+      #               fail_count += 1
+		    # #attempt to get rid of high notes when out of bounds
+		    # #instr2.noteOff(0.1)
+      #           else:
+      #               instr1.noteOff(0.7)
+      #               started = False
+      #               continue
             if counts != {}:
                 counts = combine_counts(counts, diff=1)
                 depths = sorted([(len(cnt), depth) for (depth, cnt) in 
@@ -376,62 +393,80 @@ def main():
                 minimum_count_depth = depths[0] # (len of count, depth)
                 minimum = minimum_count_depth[1]
                 print("matched pixels:", minimum_count_depth[0], "distance:", minimum)
+        # this is a proximity "filter" to prevent artifcats at a distance of 3 from triggering anything
                 if minimum < 10:
                     print("too close")
-                    if started and fail_count < 4:
-                        year = last_year
-                        fail_count += 1
-                    else:
-                        instr1.noteOff(0.7)
-                        started = False
-                        continue
-		# trying to make it not play when nobody is in field
-                if minimum_count_depth[0] < 1000 and minimum_count_depth[1] < 50:
+                    instr1.noteOff(0.7)
+                    started = False
+                    continue
+                    # if started and fail_count < 4:
+                    #     year = last_year
+                    #     fail_count += 1
+                    # else:
+                    #     instr1.noteOff(0.7)
+                    #     started = False
+                    #     continue
+        # this next "filter" has been changed to simply serve as a size of object/person filter
+                if minimum_count_depth[0] < 500: # and minimum_count_depth[1] < 50:
                     print("Not big enough to count as being a person")
-                    if started and fail_count < 4:
-                        year = last_year
-                        fail_count += 1
-                    else:
-                        instr1.noteOff(0.7)
-                        started = False
-                        continue
+                    instr1.noteOff(0.7)
+                    started = False
+                    continue
+                    # if started and fail_count < 4:
+                    #     year = last_year
+                    #     fail_count += 1
+                    # else:
+                    #     instr1.noteOff(0.7)
+                    #     started = False
+                    #     continue
+        # it will only get to this section of code if something large enough is in the field
                 column = sum(counts[minimum_count_depth[1]])/float(minimum_count_depth[0])
                 angle = column/float(width)
-                print("min angle:", angle, "distance:", minimum)
-            else: # no counts, but forced play
-                # FIXME:
-                minimum = 100
-                angle =  0.5
-        else:
-            if started and fail_count < 4:
-                fail_count += 1
-            else:
-                instr1.noteOff(0.7)
+                print("angle:", angle) #, "distance:", minimum)
+                # turn on next line when reading output to find edges of sound field with person/object in field
+                # time.sleep(3)
+            # else: # no counts, but forced play
+            #     # FIXME:
+            #     minimum = 100
+            #     angle =  0.5
+        # else:
+        #     if started and fail_count < 4:
+        #         fail_count += 1
+        #     else:
+        #         instr1.noteOff(0.7)
         year = min(max(int((minimum - 15)/120.0 * 150.0 + 1950), 1950), 2100)
         tempo = (year - 1950)/170+0.08 #changed from 220 for smaller year range
         #new formula is attempt to get earlier years to play faster
+        print("YOU GOT THROUGH THE SIZE FILTER")        
         if started:
-	    if year == 2100:
-                started = False
-                play_ending(2100, angle)
-                continue
+            # Message to confirm that started is True. Why is next if/else skipped when started is true?
+            print("started:", started)
+        # which of these is best? perhaps min>=137 so quick exist trigger ending
+    	    #if year == 2100:
+            #if year >2098:
+            if minimum >= 137:
+                    print("YEAR = ", year, "END TRIGGER")
+                    started = False
+                    play_ending(2100, angle)
+                    continue
         else:
             if year <= 1980:
+                print("year <= 1980:, START TRIGGER")
                 started = True
             else:
                 print("Not yet! go to start!")
                 started = False
                 instr1.noteOff(0.7)
                 continue
-	#attempt to kill it if fail count goes above 0
-	if started and fail_count > 0:
-	    started = False
-        fail_count = 0
-        print("year:", year, "tempo:", tempo)
-	print("distance:", minimum, "year:", year)
+        # print("min count depth", minimum_count_depth[0])
+        # if minimum_count_depth[0] > 999:
+        print("YEAR:", year)
         play_measure(instr2, percussion, year, angle, tempo)
-        print("temp:", tdata.get(year, None))
+        print("sound should be playing")
+        print("TEMP=PITCH OF NOTE:", tdata.get(year, None))
         last_year = year
+    # else:
+    #     print("NO SOUND!")
 
 chuck.init()
 initialize_data()
@@ -447,10 +482,19 @@ instr2 = chuck.Mandolin()
 instr2.connect()
 
 percussion = chuck.Shakers()
+# been playing with different shakers for possible ending
+# would rather have crash.wav ending and shakers available to play during experience in field if we want
+percussion.preset(5)
+# percussion.setEnergy(.8)
+percussion.setDecay(1)
+percussion.setObjects(128)
 percussion.connect()
 
 crash = Crash()
 crash.connect()
+
+snare = SnareChili()
+snare.connect()
 
 # i upped this to 5.87 to make the frequencies go up a bit faster
 HIGHEST_DEVIATION = 5.87

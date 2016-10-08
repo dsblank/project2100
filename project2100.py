@@ -281,7 +281,7 @@ def get_or_make_estimate(year, angle):
     ## estimate it based on past years:
     previous_year = get_or_make_estimate(year - 1, angle)
         # i changed 3/84 to 5/84 and 1/84 to .3/84 for more contrast
-    tdata[year] = min(previous_year + (1.0 - (5*angle)) * 6/84,
+    tdata[year] = min(previous_year + (1.0 - angle) * 6/84,
                       HIGHEST_DEVIATION)
     return tdata[year]
 
@@ -309,7 +309,7 @@ def play_measure(instrument, percussion, year, angle, tempo):
               quarter_note, note_percent, 1, year)
 
     if year >= 2016: # present!
-        instr1.setGain(0.2)
+        instr1.setGain(0.5)
         instr1.setFrequency(tfreq3)
         instr1.noteOn(0.7)
 
@@ -335,7 +335,7 @@ def play_ending(year, angle):
     initialize_data()
 
 def loop():
-    global last_year, started
+    global last_year, started, tempo, angle
     # empty print lines to make it easier to parse repetitive output
     # get scan:
     scan = get_scan()
@@ -362,8 +362,8 @@ def loop():
                 c += 1
             r += 1
         # Debug: ########################
-        image = Image.fromarray(pic, mode="L")
-        app.new_shapes.append(Image(0.5, 0.5, image))
+        #image = Image.fromarray(pic, mode="L")
+        #app.new_shapes.append(Picture(0.5, 0.5, cairo.ImageSurface(image)))
         #image.save("test1.jpg")
         #################################
         # counts = {32: [c, c, c, c], 67: [c, c, c]}
@@ -390,11 +390,11 @@ def loop():
                 return
     # it will only get to this section of code if something large enough is in the field
             column = sum(counts[minimum_count_depth[1]])/float(minimum_count_depth[0])
-            angle = column/float(width)
+            angle = column/float(width/5.0)
     else:
         return # no scan
     year = min(max(int((minimum - 15)/120.0 * 150.0 + 1950), 1950), 2100)
-    tempo = (year - 1950)/170+0.08 #changed from 220 for smaller year range
+    tempo = (year - 1950)/220+0.08 #changed from 220 for smaller year range
     #new formula is attempt to get earlier years to play faster
     if started:
         # Message to confirm that started is True. Why is next if/else skipped when started is true?
@@ -417,7 +417,9 @@ def main():
     while True:
         loop()
 
-last_year = 0
+last_year = 1950
+tempo = 0
+angle = 0.5
 started = False
 
 chuck.init()
@@ -529,6 +531,7 @@ class Project2100():
             self.height
         )
         # Initialize the buffer
+        self.clear()
         self.redraw_everything()
         return False
 
@@ -551,8 +554,10 @@ class Project2100():
 
     def background(self):
         loop()
-        #self.new_shapes.append( Rectangle(random.random(), random.random(), 0.1, 0.1))
-        self.new_shapes.append( Text(, , str(last_year), 0.1))
+        self.new_shapes.append( Rectangle(0.0, 0.0, 0.3, 0.3)) # .11 per line
+        self.new_shapes.append( Text(0.0, 0.1, str(last_year), 0.1, (255, 255, 255)))
+        self.new_shapes.append( Text(0.0, 0.2, "Tempo: %.2f" % tempo, 0.025, (255, 255, 255)))
+        self.new_shapes.append( Text(0.0, 0.25, "Angle: %.2f" % angle, 0.025, (255, 255, 255)))
         self.redraw()
         while Gtk.events_pending():
             Gtk.main_iteration()
@@ -561,14 +566,17 @@ class Project2100():
     def redraw(self):
         self.window.queue_draw()
 
+    def clear(self):
+        self.new_shapes.append( Rectangle(0.0, 0.0, 1.0, 1.0, (0, 0, 0)))
+
 class Rectangle():
-    def __init__(self, x, y, width, height):
+    def __init__(self, x, y, width, height, color=(0,0,0)):
         self.x = x
         self.y = y
         self.width = width
         self.height = height
         self.line_width = 1.0
-        self.color = (0, 0, 0)
+        self.color = color
 
     def draw(self, canvas):
         line_width, notused = canvas.device_to_user(self.line_width, 0.0)
@@ -579,12 +587,12 @@ class Rectangle():
         #canvas.stroke()
 
 class Text():
-    def __init__(self, x, y, text, size):
+    def __init__(self, x, y, text, size, color=(0,0,0)):
         self.x = x
         self.y = y
         self.text = text
         self.size = size
-        self.color = (0, 0, 0)
+        self.color = color
 
     def draw(self, canvas):
         canvas.device_to_user(1.0, 0.0)
@@ -595,7 +603,7 @@ class Text():
         canvas.set_font_size(self.size)
         canvas.show_text(self.text)
 
-class Image():
+class Picture():
     def __init__(self, x, y, image):
         self.x = x
         self.y = y
@@ -619,5 +627,7 @@ if __name__ == "__main__":
             play_ending(2100, angle)
     else:
         app = Project2100('project2100.glade')
+        app.shapes.append( Rectangle(0.0, 0.0, 1.0, 1.0, (0, 0, 0)))
+        app.fullscreen_mode()
         GLib.timeout_add(10, app.background, priority=100)
         Gtk.main()

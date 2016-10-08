@@ -363,6 +363,7 @@ def loop():
             r += 1
         # Debug: ########################
         image = Image.fromarray(pic, mode="L")
+        app.new_shapes.append(Image(0.5, 0.5, image))
         #image.save("test1.jpg")
         #################################
         # counts = {32: [c, c, c, c], 67: [c, c, c]}
@@ -375,7 +376,6 @@ def loop():
                              counts.items()], reverse=True)
             minimum_count_depth = depths[0] # (len of count, depth)
             minimum = minimum_count_depth[1]
-            print("matched pixels:", minimum_count_depth[0], "distance:", minimum)
     # this is a proximity "filter" to prevent artifcats at a distance of 3 from triggering anything
             if minimum < 10:
                 print("too close")
@@ -391,35 +391,26 @@ def loop():
     # it will only get to this section of code if something large enough is in the field
             column = sum(counts[minimum_count_depth[1]])/float(minimum_count_depth[0])
             angle = column/float(width)
-            print("angle:", angle) #, "distance:", minimum)
     else:
         return # no scan
     year = min(max(int((minimum - 15)/120.0 * 150.0 + 1950), 1950), 2100)
     tempo = (year - 1950)/170+0.08 #changed from 220 for smaller year range
     #new formula is attempt to get earlier years to play faster
-    print("YOU GOT THROUGH THE SIZE FILTER")
     if started:
         # Message to confirm that started is True. Why is next if/else skipped when started is true?
-        print("started:", started)
     # which of these is best? perhaps min>=137 so quick exist trigger ending
         if minimum >= 137:
-                print("YEAR = ", year, "END TRIGGER")
                 started = False
                 play_ending(2100, angle)
                 return
     else:
         if year <= 1980:
-            print("year <= 1980:, START TRIGGER")
             started = True
         else:
-            print("Not yet! go to start!")
             started = False
             instr1.noteOff(0.7)
             return
-    print("YEAR:", year)
     play_measure(instr2, percussion, year, angle, tempo)
-    print("sound should be playing")
-    print("TEMP=PITCH OF NOTE:", tdata.get(year, None))
     last_year = year
 
 def main():
@@ -531,11 +522,12 @@ class Project2100():
             self.double_buffer.finish()
             self.double_buffer = None
         # Create a new buffer
-        self.double_buffer = cairo.ImageSurface(\
-                cairo.FORMAT_ARGB32,
-                widget.get_allocated_width(),
-                widget.get_allocated_height()
-            )
+        self.width, self.height = widget.get_allocated_width(), widget.get_allocated_height()
+        self.double_buffer = cairo.ImageSurface(
+            cairo.FORMAT_ARGB32,
+            self.width, 
+            self.height
+        )
         # Initialize the buffer
         self.redraw_everything()
         return False
@@ -558,9 +550,9 @@ class Project2100():
             print('Invalid double buffer')
 
     def background(self):
-        print("BACKGROUND----------------------------")
         loop()
-        self.new_shapes.append( Rectangle(random.random(), random.random(), 0.1, 0.1))
+        #self.new_shapes.append( Rectangle(random.random(), random.random(), 0.1, 0.1))
+        self.new_shapes.append( Text(, , str(last_year), 0.1))
         self.redraw()
         while Gtk.events_pending():
             Gtk.main_iteration()
@@ -579,12 +571,40 @@ class Rectangle():
         self.color = (0, 0, 0)
 
     def draw(self, canvas):
-        print("Rectangle", self.x, self.y, self.width, self.height)
         line_width, notused = canvas.device_to_user(self.line_width, 0.0)
         canvas.rectangle(self.x, self.y, self.width, self.height)
         canvas.set_line_width(line_width)
         canvas.set_source_rgb(*self.color)
-        canvas.stroke()
+        canvas.fill();
+        #canvas.stroke()
+
+class Text():
+    def __init__(self, x, y, text, size):
+        self.x = x
+        self.y = y
+        self.text = text
+        self.size = size
+        self.color = (0, 0, 0)
+
+    def draw(self, canvas):
+        canvas.device_to_user(1.0, 0.0)
+        canvas.move_to(self.x, self.y)
+        canvas.set_source_rgb(*self.color)
+        canvas.select_font_face("Purisa", cairo.FONT_SLANT_NORMAL, 
+                                cairo.FONT_WEIGHT_NORMAL)
+        canvas.set_font_size(self.size)
+        canvas.show_text(self.text)
+
+class Image():
+    def __init__(self, x, y, image):
+        self.x = x
+        self.y = y
+        self.image = image
+
+    def draw(self, canvas):
+        canvas.device_to_user(1.0, 0.0)
+        canvas.set_source_surface(self.image, self.x, self.y)
+        canvas.paint()
 
 if __name__ == "__main__":
     if sys.argv[1:]:

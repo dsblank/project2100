@@ -107,7 +107,8 @@ class Project2100():
             print('Invalid double buffer')
 
     def background(self):
-        self.new_shapes.append( Rectangle(random.random(), random.random(), 0.1, 0.1))
+        #self.new_shapes.append( Rectangle(random.random(), random.random(), 0.1, 0.1))
+        self.new_shapes.append( Text(random.random(), random.random(), "1950", 0.05))
         self.redraw()
         return True
 
@@ -124,12 +125,40 @@ class Rectangle():
         self.color = (0, 0, 0)
 
     def draw(self, canvas):
-        print("Rectangle", self.x, self.y, self.width, self.height)
         line_width, notused = canvas.device_to_user(self.line_width, 0.0)
         canvas.rectangle(self.x, self.y, self.width, self.height)
         canvas.set_line_width(line_width)
         canvas.set_source_rgb(*self.color)
-        canvas.stroke()
+        canvas.fill();
+        #canvas.stroke()
+
+class Text():
+    def __init__(self, x, y, text, size):
+        self.x = x
+        self.y = y
+        self.text = text
+        self.size = size
+        self.color = (0, 0, 0)
+
+    def draw(self, canvas):
+        canvas.device_to_user(1.0, 0.0)
+        canvas.move_to(self.x, self.y)
+        canvas.set_source_rgb(*self.color)
+        canvas.select_font_face("Purisa", cairo.FONT_SLANT_NORMAL, 
+                                cairo.FONT_WEIGHT_NORMAL)
+        canvas.set_font_size(self.size)
+        canvas.show_text(self.text)
+
+class Image():
+    def __init__(self, x, y, image):
+        self.x = x
+        self.y = y
+        self.image = image
+
+    def draw(self, canvas):
+        canvas.device_to_user(1.0, 0.0)
+        canvas.set_source_surface(self.image, self.x, self.y)
+        canvas.paint()
 
 if __name__ == "__main__":
     app = Project2100('project2100.glade')

@@ -4,6 +4,7 @@ from gi.repository import Gtk
 from gi.repository import GLib
 from gi.repository import Gdk
 
+import math
 import cairo
 import time
 import sys
@@ -108,7 +109,12 @@ class Project2100():
 
     def background(self):
         #self.new_shapes.append( Rectangle(random.random(), random.random(), 0.1, 0.1))
-        self.new_shapes.append( Text(random.random(), random.random(), "1950", 0.05))
+        r = random.random()
+        g = random.random()
+        b = random.random()
+        self.new_shapes.append( Circle(random.random(), random.random(), 0.1,
+                                       (r,g,b)))
+        #self.new_shapes.append( Text(random.random(), random.random(), "1950", 0.05))
         self.redraw()
         return True
 
@@ -149,6 +155,21 @@ class Text():
         canvas.set_font_size(self.size)
         canvas.show_text(self.text)
 
+class Circle():
+    def __init__(self, x, y, radius, color=(0,0,0)):
+        self.x = x
+        self.y = y
+        self.radius = radius
+        self.line_width = 1.0
+        self.color = color
+
+    def draw(self, canvas):
+        line_width, notused = canvas.device_to_user(self.line_width, 0.0)
+        canvas.arc(self.x, self.y, self.radius, 0, 2 * math.pi)
+        canvas.set_line_width(line_width)
+        canvas.set_source_rgb(*self.color)
+        canvas.fill()
+
 class Image():
     def __init__(self, x, y, image):
         self.x = x
@@ -163,4 +184,7 @@ class Image():
 if __name__ == "__main__":
     app = Project2100('project2100.glade')
     GLib.timeout_add(100, app.background, priority=100)
+    app.new_shapes.append( Circle(0.1, 0.1, 0.1, (255, 128, 0)))
+    app.new_shapes.append( Circle(0.2, 0.2, 0.1, (0, 128, 255)))
+    app.new_shapes.append( Circle(0.3, 0.3, 0.1, (255, 0, 0)))
     Gtk.main()

@@ -614,6 +614,21 @@ class Picture():
         canvas.set_source_surface(self.image, self.x, self.y)
         canvas.paint()
 
+class Circle():
+    def __init__(self, x, y, radius, color=(0,0,0)):
+        self.x = x
+        self.y = y
+        self.radius = radius
+        self.line_width = 1.0
+        self.color = color
+
+    def draw(self, canvas):
+        line_width, notused = canvas.device_to_user(self.line_width, 0.0)
+        canvas.arc(self.x, self.y, self.radius, 0, 2 * math.pi)
+        canvas.set_line_width(line_width)
+        canvas.set_source_rgb(*self.color)
+        canvas.fill()
+
 if __name__ == "__main__":
     if sys.argv[1:]:
         start_year = int(sys.argv[1])

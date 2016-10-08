@@ -20,8 +20,8 @@ import sys
 
 def initialize_data():
     """
-    This is the average temperature data. It is the deviation from 
-    the average (14.0) in celsius. 
+    This is the average temperature data. It is the deviation from
+    the average (14.0) in celsius.
     """
     global tdata
     # these data have been smoothed (1950-80, +.014667/yr; 1981-2015, +.01716/yr)
@@ -243,7 +243,7 @@ def tdata_to_freq(celsius):
     freq = key_to_freq(key)
     return freq
 
-def play_note(instrument, percussion, frequency, volume, quarter_note, 
+def play_note(instrument, percussion, frequency, volume, quarter_note,
               note_percent, count, year):
     seconds1 = quarter_note / 2.0
     seconds2 = max((quarter_note * note_percent) - seconds1, 0)
@@ -274,8 +274,8 @@ def get_or_make_estimate(year, angle):
         return tdata1
     ## estimate it based on past years:
     previous_year = get_or_make_estimate(year - 1, angle)
-	# i changed 3/84 to 5/84 and 1/84 to .3/84 for more contrast
-    tdata[year] = min(previous_year + (1.0 - angle) * 5./84 + .3/84, 
+        # i changed 3/84 to 5/84 and 1/84 to .3/84 for more contrast
+    tdata[year] = min(previous_year + (1.0 - angle) * 5./84 + .3/84,
                       HIGHEST_DEVIATION)
     return tdata[year]
 
@@ -294,12 +294,12 @@ def play_measure(instrument, percussion, year, angle, tempo):
     tfreq2 = tdata_to_freq(tdata2)
     tfreq3 = tdata_to_freq(tdata3)
 
-    quarter_note = 1.0 - tempo/1.0 
+    quarter_note = 1.0 - tempo/1.0
     eighth_note = quarter_note/2.0
 
     instr1.noteOff(0.7)
 
-    play_note(instrument, percussion, tfreq3, 1.0, 
+    play_note(instrument, percussion, tfreq3, 1.0,
               quarter_note, note_percent, 1, year)
 
     if year >= 2016: # present!
@@ -307,10 +307,10 @@ def play_measure(instrument, percussion, year, angle, tempo):
         instr1.setFrequency(tfreq3)
         instr1.noteOn(0.7)
 
-    #play_note(instrument, percussion, tfreq2, 0.7, 
+    #play_note(instrument, percussion, tfreq2, 0.7,
     #          quarter_note, note_percent, 2, year)
 
-    #play_note(instrument, percussion, tfreq1, 0.6, 
+    #play_note(instrument, percussion, tfreq1, 0.6,
     #          quarter_note, note_percent, 3, year)
 
 def play_ending(year, angle):
@@ -349,18 +349,18 @@ def main():
         if scan is not None:
             data = get_depth(scan) # 0 is close, 255 is nothing
             rows, cols = data.shape
-            start_row = 250
-            stop_row = 300 # 480 max
+            start_row = 0
+            stop_row = 400 # 480 max, was 300
             start_col = 150
             stop_col = 490 # 640 max
             height, width = (stop_row - start_row), (stop_col - start_col)
             pic = np.zeros(shape=(height, width), dtype="uint8")
             r = 0
-	    counts = {}
-            for row in range(start_row, stop_row):
+            counts = {}
+            for row in range(start_row, stop_row, 5):
                 c = 0
                 #counts = {}
-                for col in range(start_col, stop_col):
+                for col in range(start_col, stop_col, 5):
                     if 0 < data[row][col] < 145:
                         list = counts.get(data[row][col], [])
                         list.append(c)
@@ -369,26 +369,19 @@ def main():
                     c += 1
                 r += 1
             # Debug: ########################
-            # image = Image.fromarray(pic, mode="L")
-            # image.save("test1.jpg")
+            image = Image.fromarray(pic, mode="L")
+            image.save("test1.jpg")
             #################################
             # counts = {32: [c, c, c, c], 67: [c, c, c]}
             if counts == {}:
                 # this is if no pixels get detected, at least I think, - RS
                 print("No one seen")
                 continue
-      #           if started and fail_count < 4:
-      #               year = last_year
-      #               fail_count += 1
-		    # #attempt to get rid of high notes when out of bounds
-		    # #instr2.noteOff(0.1)
-      #           else:
-      #               instr1.noteOff(0.7)
-      #               started = False
-      #               continue
             if counts != {}:
-                counts = combine_counts(counts, diff=1)
-                depths = sorted([(len(cnt), depth) for (depth, cnt) in 
+                #print("before:", counts)
+                #counts = combine_counts(counts, diff=1)
+                #print("after:", counts)
+                depths = sorted([(len(cnt), depth) for (depth, cnt) in
                                  counts.items()], reverse=True)
                 minimum_count_depth = depths[0] # (len of count, depth)
                 minimum = minimum_count_depth[1]
@@ -399,15 +392,8 @@ def main():
                     instr1.noteOff(0.7)
                     started = False
                     continue
-                    # if started and fail_count < 4:
-                    #     year = last_year
-                    #     fail_count += 1
-                    # else:
-                    #     instr1.noteOff(0.7)
-                    #     started = False
-                    #     continue
         # this next "filter" has been changed to simply serve as a size of object/person filter
-                if minimum_count_depth[0] < 500: # and minimum_count_depth[1] < 50:
+                if minimum_count_depth[0] < 25: # and minimum_count_depth[1] < 50:
                     print("Not big enough to count as being a person")
                     instr1.noteOff(0.7)
                     started = False
@@ -423,27 +409,14 @@ def main():
                 column = sum(counts[minimum_count_depth[1]])/float(minimum_count_depth[0])
                 angle = column/float(width)
                 print("angle:", angle) #, "distance:", minimum)
-                # turn on next line when reading output to find edges of sound field with person/object in field
-                # time.sleep(3)
-            # else: # no counts, but forced play
-            #     # FIXME:
-            #     minimum = 100
-            #     angle =  0.5
-        # else:
-        #     if started and fail_count < 4:
-        #         fail_count += 1
-        #     else:
-        #         instr1.noteOff(0.7)
         year = min(max(int((minimum - 15)/120.0 * 150.0 + 1950), 1950), 2100)
         tempo = (year - 1950)/170+0.08 #changed from 220 for smaller year range
         #new formula is attempt to get earlier years to play faster
-        print("YOU GOT THROUGH THE SIZE FILTER")        
+        print("YOU GOT THROUGH THE SIZE FILTER")
         if started:
             # Message to confirm that started is True. Why is next if/else skipped when started is true?
             print("started:", started)
         # which of these is best? perhaps min>=137 so quick exist trigger ending
-    	    #if year == 2100:
-            #if year >2098:
             if minimum >= 137:
                     print("YEAR = ", year, "END TRIGGER")
                     started = False
@@ -493,8 +466,8 @@ percussion.connect()
 crash = Crash()
 crash.connect()
 
-snare = SnareChili()
-snare.connect()
+#snare = SnareChili()
+#snare.connect()
 
 # i upped this to 5.87 to make the frequencies go up a bit faster
 HIGHEST_DEVIATION = 5.87

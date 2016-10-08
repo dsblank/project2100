@@ -1,3 +1,5 @@
+from __future__ import print_function, division, with_statement
+
 from gi.repository import Gtk
 from gi.repository import GLib
 from gi.repository import Gdk
@@ -64,7 +66,8 @@ class Project2100():
             db.flush()
             # move to shape to be able to redraw after resize/etc
             #self.shapes.extend(self.new_shapes)
-            self.new_shapes.clear()
+            while self.new_shapes: 
+                self.new_shapes.pop()
         # Now refresh window:
         cr.set_source_surface(db, 0.0, 0.0)
         cr.paint()

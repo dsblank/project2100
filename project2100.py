@@ -6,7 +6,13 @@ from __future__ import division, print_function, with_statement
 ## Rhine Singleton & Doug Blank
 ## http://www.ecologyandevolution.org/2100home.html
 
-#import gtk
+from gi.repository import Gtk
+from gi.repository import GLib
+from gi.repository import Gdk
+
+import cairo
+import random
+
 import freenect
 import chuck
 import os
@@ -328,118 +334,100 @@ def play_ending(year, angle):
     # this next line prevents ending from playing 2100 end notes stored from previous iterations
     initialize_data()
 
-def main():
-    #window = gtk.Window()
-    #window.fullscreen()
-    #window.show()
-    chuck.init()
-    last_year = 0
-    started = False
-    # fail_count = 0
-    while True:
-        # empty print lines to make it easier to parse repetitive output
-        print("")
-        print("")
-        # print("where that snare at!")
-        # snare.noteOn(volume=0.6, wait=4.0)
-        # wait=4
-        print("scan!", started) # shows start status
-        # get scan:
-        scan = get_scan()
-        if scan is not None:
-            data = get_depth(scan) # 0 is close, 255 is nothing
-            rows, cols = data.shape
-            start_row = 0
-            stop_row = 400 # 480 max, was 300
-            start_col = 150
-            stop_col = 490 # 640 max
-            height, width = (stop_row - start_row), (stop_col - start_col)
-            pic = np.zeros(shape=(height, width), dtype="uint8")
-            r = 0
-            counts = {}
-            for row in range(start_row, stop_row, 5):
-                c = 0
-                #counts = {}
-                for col in range(start_col, stop_col, 5):
-                    if 0 < data[row][col] < 145:
-                        list = counts.get(data[row][col], [])
-                        list.append(c)
-                        counts[data[row][col]] = list
-                        pic[r][c] = data[row][col]
-                    c += 1
-                r += 1
-            # Debug: ########################
-            image = Image.fromarray(pic, mode="L")
-            image.save("test1.jpg")
-            #################################
-            # counts = {32: [c, c, c, c], 67: [c, c, c]}
-            if counts == {}:
-                # this is if no pixels get detected, at least I think, - RS
-                print("No one seen")
-                continue
-            if counts != {}:
-                #print("before:", counts)
-                #counts = combine_counts(counts, diff=1)
-                #print("after:", counts)
-                depths = sorted([(len(cnt), depth) for (depth, cnt) in
-                                 counts.items()], reverse=True)
-                minimum_count_depth = depths[0] # (len of count, depth)
-                minimum = minimum_count_depth[1]
-                print("matched pixels:", minimum_count_depth[0], "distance:", minimum)
-        # this is a proximity "filter" to prevent artifcats at a distance of 3 from triggering anything
-                if minimum < 10:
-                    print("too close")
-                    instr1.noteOff(0.7)
-                    started = False
-                    continue
-        # this next "filter" has been changed to simply serve as a size of object/person filter
-                if minimum_count_depth[0] < 25: # and minimum_count_depth[1] < 50:
-                    print("Not big enough to count as being a person")
-                    instr1.noteOff(0.7)
-                    started = False
-                    continue
-                    # if started and fail_count < 4:
-                    #     year = last_year
-                    #     fail_count += 1
-                    # else:
-                    #     instr1.noteOff(0.7)
-                    #     started = False
-                    #     continue
-        # it will only get to this section of code if something large enough is in the field
-                column = sum(counts[minimum_count_depth[1]])/float(minimum_count_depth[0])
-                angle = column/float(width)
-                print("angle:", angle) #, "distance:", minimum)
-        year = min(max(int((minimum - 15)/120.0 * 150.0 + 1950), 1950), 2100)
-        tempo = (year - 1950)/170+0.08 #changed from 220 for smaller year range
-        #new formula is attempt to get earlier years to play faster
-        print("YOU GOT THROUGH THE SIZE FILTER")
-        if started:
-            # Message to confirm that started is True. Why is next if/else skipped when started is true?
-            print("started:", started)
-        # which of these is best? perhaps min>=137 so quick exist trigger ending
-            if minimum >= 137:
-                    print("YEAR = ", year, "END TRIGGER")
-                    started = False
-                    play_ending(2100, angle)
-                    continue
-        else:
-            if year <= 1980:
-                print("year <= 1980:, START TRIGGER")
-                started = True
-            else:
-                print("Not yet! go to start!")
-                started = False
+def loop():
+    global last_year, started
+    # empty print lines to make it easier to parse repetitive output
+    # get scan:
+    scan = get_scan()
+    if scan is not None:
+        data = get_depth(scan) # 0 is close, 255 is nothing
+        rows, cols = data.shape
+        start_row = 0
+        stop_row = 400 # 480 max, was 300
+        start_col = 150
+        stop_col = 490 # 640 max
+        height, width = (stop_row - start_row), (stop_col - start_col)
+        pic = np.zeros(shape=(height, width), dtype="uint8")
+        r = 0
+        counts = {}
+        for row in range(start_row, stop_row, 5):
+            c = 0
+            #counts = {}
+            for col in range(start_col, stop_col, 5):
+                if 0 < data[row][col] < 145:
+                    list = counts.get(data[row][col], [])
+                    list.append(c)
+                    counts[data[row][col]] = list
+                    pic[r][c] = data[row][col]
+                c += 1
+            r += 1
+        # Debug: ########################
+        image = Image.fromarray(pic, mode="L")
+        image.save("test1.jpg")
+        #################################
+        # counts = {32: [c, c, c, c], 67: [c, c, c]}
+        if counts == {}:
+            # this is if no pixels get detected, at least I think, - RS
+            print("No one seen")
+            return
+        if counts != {}:
+            depths = sorted([(len(cnt), depth) for (depth, cnt) in
+                             counts.items()], reverse=True)
+            minimum_count_depth = depths[0] # (len of count, depth)
+            minimum = minimum_count_depth[1]
+            print("matched pixels:", minimum_count_depth[0], "distance:", minimum)
+    # this is a proximity "filter" to prevent artifcats at a distance of 3 from triggering anything
+            if minimum < 10:
+                print("too close")
                 instr1.noteOff(0.7)
-                continue
-        # print("min count depth", minimum_count_depth[0])
-        # if minimum_count_depth[0] > 999:
-        print("YEAR:", year)
-        play_measure(instr2, percussion, year, angle, tempo)
-        print("sound should be playing")
-        print("TEMP=PITCH OF NOTE:", tdata.get(year, None))
-        last_year = year
-    # else:
-    #     print("NO SOUND!")
+                started = False
+                return
+    # this next "filter" has been changed to simply serve as a size of object/person filter
+            if minimum_count_depth[0] < 25: # and minimum_count_depth[1] < 50:
+                print("Not big enough to count as being a person")
+                instr1.noteOff(0.7)
+                started = False
+                return
+    # it will only get to this section of code if something large enough is in the field
+            column = sum(counts[minimum_count_depth[1]])/float(minimum_count_depth[0])
+            angle = column/float(width)
+            print("angle:", angle) #, "distance:", minimum)
+    else:
+        return # no scan
+    year = min(max(int((minimum - 15)/120.0 * 150.0 + 1950), 1950), 2100)
+    tempo = (year - 1950)/170+0.08 #changed from 220 for smaller year range
+    #new formula is attempt to get earlier years to play faster
+    print("YOU GOT THROUGH THE SIZE FILTER")
+    if started:
+        # Message to confirm that started is True. Why is next if/else skipped when started is true?
+        print("started:", started)
+    # which of these is best? perhaps min>=137 so quick exist trigger ending
+        if minimum >= 137:
+                print("YEAR = ", year, "END TRIGGER")
+                started = False
+                play_ending(2100, angle)
+                return
+    else:
+        if year <= 1980:
+            print("year <= 1980:, START TRIGGER")
+            started = True
+        else:
+            print("Not yet! go to start!")
+            started = False
+            instr1.noteOff(0.7)
+            return
+    print("YEAR:", year)
+    play_measure(instr2, percussion, year, angle, tempo)
+    print("sound should be playing")
+    print("TEMP=PITCH OF NOTE:", tdata.get(year, None))
+    last_year = year
+
+def main():
+    while True:
+        loop()
+
+last_year = 0
+started = False
 
 chuck.init()
 initialize_data()
@@ -472,6 +460,129 @@ crash.connect()
 # i upped this to 5.87 to make the frequencies go up a bit faster
 HIGHEST_DEVIATION = 5.87
 
+class Project2100():
+    def __init__(self, glade_file=None):
+        self.shapes = []
+        self.new_shapes = []
+        self.is_fullscreen = False
+        self.double_buffer = None
+
+        if glade_file:
+            self.builder = Gtk.Builder()
+            self.glade_file = glade_file
+            self.builder.add_from_file(self.glade_file)
+            # Get objects
+            self.window = self.builder.get_object("window")
+            self.builder.connect_signals(self)
+        else:
+            self.window = Gtk.Window()
+        self.window.connect("key-press-event", self.on_win_key_press_event)
+        self.window.connect("window-state-event", self.on_window_state_event)
+        self.window.connect("destroy", self.close_window)
+        self.window.show()
+
+    def close_window(self, widget=None):
+        Gtk.main_quit()
+
+    def fullscreen_mode(self):
+        if self.is_fullscreen:
+            self.window.unfullscreen()
+        else:
+            self.window.fullscreen()
+
+    def on_win_key_press_event(self, widget, ev):
+        key = Gdk.keyval_name(ev.keyval)
+        if key == "f":
+            self.fullscreen_mode()
+        elif key == "q":
+            self.close_window()
+        elif key == "u":
+            self.redraw()
+
+    def on_window_state_event(self, widget, ev):
+        self.is_fullscreen = bool(ev.new_window_state & Gdk.WindowState.FULLSCREEN)
+
+    def on_draw(self, widget, cr):
+        """Throw double buffer into widget drawable"""
+        db = self.double_buffer
+        if db is None:
+            print('Invalid double buffer')
+            return False
+        #new things to draw?
+        if self.new_shapes:
+            cc = cairo.Context(db)
+            cc.scale(db.get_width(), db.get_height())
+            for shape in self.new_shapes:
+                shape.draw(cc)
+            db.flush()
+            # move to shape to be able to redraw after resize/etc
+            #self.shapes.extend(self.new_shapes)
+            while self.new_shapes: 
+                self.new_shapes.pop()
+        # Now refresh window:
+        cr.set_source_surface(db, 0.0, 0.0)
+        cr.paint()
+        return False
+
+    def on_configure(self, widget, event, data=None):
+        """Configure the double buffer based on size of the widget"""
+        # Destroy previous buffer
+        if self.double_buffer is not None:
+            self.double_buffer.finish()
+            self.double_buffer = None
+        # Create a new buffer
+        self.double_buffer = cairo.ImageSurface(\
+                cairo.FORMAT_ARGB32,
+                widget.get_allocated_width(),
+                widget.get_allocated_height()
+            )
+        # Initialize the buffer
+        self.redraw_everything()
+        return False
+
+    def redraw_everything(self):
+        """Draw something into the buffer"""
+        db = self.double_buffer
+        if db is not None:
+            # Create cairo context with double buffer as is DESTINATION
+            cc = cairo.Context(db)
+            # Scale to device coordenates
+            cc.scale(db.get_width(), db.get_height())
+            # Draw a white background
+            cc.set_source_rgb(1, 1, 1)
+            for shape in self.shapes:
+                shape.draw(cc)
+            # Flush drawing actions
+            db.flush()
+        else:
+            print('Invalid double buffer')
+
+    def background(self):
+        loop()
+        self.new_shapes.append( Rectangle(random.random(), random.random(), 0.1, 0.1))
+        self.redraw()
+        return True
+
+    def redraw(self):
+        self.window.queue_draw()
+
+class Rectangle():
+    def __init__(self, x, y, width, height):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.line_width = 1.0
+        self.color = (0, 0, 0)
+
+    def draw(self, canvas):
+        print("Rectangle", self.x, self.y, self.width, self.height)
+        line_width, notused = canvas.device_to_user(self.line_width, 0.0)
+        canvas.rectangle(self.x, self.y, self.width, self.height)
+        canvas.set_line_width(line_width)
+        canvas.set_source_rgb(*self.color)
+        canvas.stroke()
+
 if __name__ == "__main__":
     if sys.argv[1:]:
         start_year = int(sys.argv[1])
@@ -484,4 +595,6 @@ if __name__ == "__main__":
         if stop_year == 2100:
             play_ending(2100, angle)
     else:
-        main()
+        app = Project2100('project2100.glade')
+        GLib.timeout_add(10, app.background, priority=100)
+        Gtk.main()

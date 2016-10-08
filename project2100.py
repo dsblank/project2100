@@ -281,7 +281,7 @@ def get_or_make_estimate(year, angle):
     ## estimate it based on past years:
     previous_year = get_or_make_estimate(year - 1, angle)
         # i changed 3/84 to 5/84 and 1/84 to .3/84 for more contrast
-    tdata[year] = min(previous_year + (1.0 - angle) * 5./84 + .3/84,
+    tdata[year] = min(previous_year + (1.0 - (5*angle)) * 6/84,
                       HIGHEST_DEVIATION)
     return tdata[year]
 
@@ -363,7 +363,7 @@ def loop():
             r += 1
         # Debug: ########################
         image = Image.fromarray(pic, mode="L")
-        image.save("test1.jpg")
+        #image.save("test1.jpg")
         #################################
         # counts = {32: [c, c, c, c], 67: [c, c, c]}
         if counts == {}:
@@ -558,9 +558,12 @@ class Project2100():
             print('Invalid double buffer')
 
     def background(self):
+        print("BACKGROUND----------------------------")
         loop()
         self.new_shapes.append( Rectangle(random.random(), random.random(), 0.1, 0.1))
         self.redraw()
+        while Gtk.events_pending():
+            Gtk.main_iteration()
         return True
 
     def redraw(self):

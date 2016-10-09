@@ -10,9 +10,9 @@ from gi.repository import Gtk
 from gi.repository import GLib
 from gi.repository import Gdk
 
+import math
 import cairo
 import random
-
 import freenect
 import chuck
 import os
@@ -326,16 +326,57 @@ def play_ending(year, angle):
     instr1.noteOff(0.7)
     # time.sleep(1)
     # for now, trying a percussion sound end
-    percussion.noteOn(1)
+    percussion.noteOn(2)
     time.sleep(6)
-    percussion.noteOff(1)
+    #percussion.noteOff(1)
     # can't get the crash or any wav to work
     # crash.noteOn(volume=0.6, wait=4.0)
     # this next line prevents ending from playing 2100 end notes stored from previous iterations
     initialize_data()
+    bowed.stopBowing(0.4)
+    app.clear()
+
+BLUE, GREEN, RED, ALPHA = 0, 1, 2, 3
+
+def cache(f):
+    pdict = {}
+    def new_f(*args):
+        if args not in pdict:
+            pdict[args] = f(*args)
+        return pdict[args]
+    return new_f
+
+@cache
+def guess_year(distance):
+    year = min(max(int((distance - 15)/120.0 * 150.0 + 1950), 1950), 2100)
+    return year
+
+@cache
+def make_color(year, angle):
+    d1 = 1 - (year - 1950)/(2100 - 1950)
+    if year <= 2016:
+        d2 = .5
+    else:
+        d2 = angle # 100% yellow
+        d2 = d2 ** 1.75
+    red = (1 - d2)
+    yellow = d2
+    blue = d1
+    # turn red, yellow, blue into red, green, blue
+    if red < yellow:
+        red = yellow
+    return red, yellow, blue
+
+def reset():
+    global last_year, started, tempo, angle, last_color
+    bowed.stopBowing(0.5)
+    last_year = 1950
+    last_color = make_color(last_year, 0.5)
+    initialize_data()
+    app.clear()
 
 def loop():
-    global last_year, started, tempo, angle
+    global last_year, started, tempo, angle, last_color
     # empty print lines to make it easier to parse repetitive output
     # get scan:
     scan = get_scan()
@@ -347,23 +388,47 @@ def loop():
         start_col = 150
         stop_col = 490 # 640 max
         height, width = (stop_row - start_row), (stop_col - start_col)
-        pic = np.zeros(shape=(height, width), dtype="uint8")
+        pic = np.zeros(shape=(height/5, width/5, 4), dtype="uint8")
         r = 0
         counts = {}
+        line_year = last_year
+        lred, lgreen, lblue = make_color(line_year, angle)
         for row in range(start_row, stop_row, 5):
             c = 0
             #counts = {}
             for col in range(start_col, stop_col, 5):
-                if 0 < data[row][col] < 145:
+                #print(year, r, g, b)
+                if row <= 3:
+                    pic[r][c][RED] = int(lred * 255)
+                    pic[r][c][GREEN] =  int(lgreen * 255)
+                    pic[r][c][BLUE] = int(lblue * 255)
+                    pic[r][c][ALPHA] = 255
+                elif 0 < data[row][col] < 145:
+                    tyear = guess_year(data[row][col])
+                    red, green, blue = make_color(tyear, (col - start_col)/(stop_col - start_col))
                     list = counts.get(data[row][col], [])
                     list.append(c)
                     counts[data[row][col]] = list
-                    pic[r][c] = data[row][col]
+                    if started:
+                        pic[r][c][RED] = int(red * 255)
+                        pic[r][c][GREEN] =  int(green * 255)
+                        pic[r][c][BLUE] = int(blue * 255)
+                        pic[r][c][ALPHA] = 255
+                elif started:
+                    pic[r][c][RED] = 0
+                    pic[r][c][GREEN] = 0
+                    pic[r][c][BLUE] = 0
+                    pic[r][c][ALPHA] = 255
                 c += 1
             r += 1
         # Debug: ########################
         #image = Image.fromarray(pic, mode="L")
-        #app.new_shapes.append(Picture(0.5, 0.5, cairo.ImageSurface(image)))
+        app.new_shapes.append( Rectangle(0.0, 0.0, app.width, app.height))
+        surface = cairo.ImageSurface.create_for_data(pic,
+                                                     cairo.FORMAT_ARGB32, 
+                                                     int(width/5), 
+                                                     int(height/5))
+        app.new_shapes.append(Picture(0, 35, surface))
         #image.save("test1.jpg")
         #################################
         # counts = {32: [c, c, c, c], 67: [c, c, c]}
@@ -380,18 +445,21 @@ def loop():
             if minimum < 10:
                 print("too close")
                 instr1.noteOff(0.7)
+                reset()
                 started = False
                 return
     # this next "filter" has been changed to simply serve as a size of object/person filter
             if minimum_count_depth[0] < 25: # and minimum_count_depth[1] < 50:
                 print("Not big enough to count as being a person")
                 instr1.noteOff(0.7)
+                reset()
                 started = False
                 return
     # it will only get to this section of code if something large enough is in the field
             column = sum(counts[minimum_count_depth[1]])/float(minimum_count_depth[0])
             angle = column/float(width/5.0)
     else:
+        print("no scan")
         return # no scan
     year = min(max(int((minimum - 15)/120.0 * 150.0 + 1950), 1950), 2100)
     tempo = (year - 1950)/220+0.08 #changed from 220 for smaller year range
@@ -399,19 +467,24 @@ def loop():
     if started:
         # Message to confirm that started is True. Why is next if/else skipped when started is true?
     # which of these is best? perhaps min>=137 so quick exist trigger ending
-        if minimum >= 137:
+        if year == 2100: # minimum >= 137:
                 started = False
-                play_ending(2100, angle)
+                last_year = year
+                last_color = make_color(last_year, angle)
+                #play_ending(2100, angle)
                 return
     else:
         if year <= 1980:
             started = True
+            bowed.startBowing(0.4)
         else:
             started = False
             instr1.noteOff(0.7)
+            reset()
             return
     play_measure(instr2, percussion, year, angle, tempo)
     last_year = year
+    last_color = make_color(last_year, angle)
 
 def main():
     while True:
@@ -421,6 +494,7 @@ last_year = 1950
 tempo = 0
 angle = 0.5
 started = False
+last_color = make_color(1950, .5)
 
 chuck.init()
 initialize_data()
@@ -445,7 +519,14 @@ percussion.setObjects(128)
 percussion.connect()
 
 crash = Crash()
-crash.connect()
+#crash.connect()
+
+
+bowed = chuck.Bowed()
+bowed.setVibrato(0.6, 0.012)
+bowed.setBow(0.2, 1)
+bowed.setFrequency(100)
+bowed.connect()
 
 #snare = SnareChili()
 #snare.connect()
@@ -504,7 +585,7 @@ class Project2100():
         #new things to draw?
         if self.new_shapes:
             cc = cairo.Context(db)
-            cc.scale(db.get_width(), db.get_height())
+            #cc.scale(db.get_width(), db.get_height())
             for shape in self.new_shapes:
                 shape.draw(cc)
             db.flush()
@@ -542,7 +623,7 @@ class Project2100():
             # Create cairo context with double buffer as is DESTINATION
             cc = cairo.Context(db)
             # Scale to device coordenates
-            cc.scale(db.get_width(), db.get_height())
+            #cc.scale(db.get_width(), db.get_height())
             # Draw a white background
             cc.set_source_rgb(1, 1, 1)
             for shape in self.shapes:
@@ -553,14 +634,20 @@ class Project2100():
             print('Invalid double buffer')
 
     def background(self):
+        global last_year, angle
         loop()
-        self.new_shapes.append( Rectangle(0.0, 0.0, 0.3, 0.3)) # .11 per line
-        self.new_shapes.append( Text(0.0, 0.1, str(last_year), 0.1, (255, 255, 255)))
-        self.new_shapes.append( Text(0.0, 0.2, "Tempo: %.2f" % tempo, 0.025, (255, 255, 255)))
-        self.new_shapes.append( Text(0.0, 0.25, "Angle: %.2f" % angle, 0.025, (255, 255, 255)))
+        x = 25
+        #x = (last_year - 1950)/(2100 - 1950) * 50
+        self.new_shapes.append( Text(x, 20, str(last_year), 8, last_color))
+        #self.new_shapes.append( Text(0.0, 0.2, "Tempo: %.2f" % tempo, 0.025, (255, 255, 255)))
+        #self.new_shapes.append( Text(0.0, 0.25, "Angle: %.2f" % angle, 0.025, (255, 255, 255)))
         self.redraw()
         while Gtk.events_pending():
             Gtk.main_iteration()
+        print("last_year", last_year)
+        if last_year == 2100:
+            play_ending(2100, angle)
+            reset()
         return True
 
     def redraw(self):
@@ -610,7 +697,8 @@ class Picture():
         self.image = image
 
     def draw(self, canvas):
-        canvas.device_to_user(1.0, 0.0)
+        #canvas.device_to_user(1.0, 0.0)
+        canvas.scale(19.0, 7.0);
         canvas.set_source_surface(self.image, self.x, self.y)
         canvas.paint()
 

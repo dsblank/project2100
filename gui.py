@@ -187,4 +187,13 @@ if __name__ == "__main__":
     app.new_shapes.append( Circle(0.1, 0.1, 0.1, (255, 128, 0)))
     app.new_shapes.append( Circle(0.2, 0.2, 0.1, (0, 128, 255)))
     app.new_shapes.append( Circle(0.3, 0.3, 0.1, (255, 0, 0)))
+
+    import numpy
+    data = numpy.zeros((200, 200, 4), dtype=numpy.uint8)
+    surface = cairo.ImageSurface.create_for_data(
+        data, cairo.FORMAT_ARGB32, 200, 200)
+    cr = cairo.Context(surface)
+
+    app.new_shapes.append( Image(0.1, 0.1, surface))
+
     Gtk.main()
